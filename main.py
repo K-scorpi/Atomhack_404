@@ -1,64 +1,111 @@
+import re
+from tqdm import tqdm
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from tqdm import tqdm  # Импортируем tqdm для прогресс-бара
+from sklearn.linear_model import SGDClassifier
+from sklearn.pipeline import make_pipeline
+from sklearn.model_selection import train_test_split
+from sklearn.utils import shuffle
+import numpy as np
+import joblib
+import os
 
-class QuestionAnswerModel:
-    def __init__(self):
-        self.questions = []
-        self.answers = []
-        self.vectorizer = TfidfVectorizer()
-        self.model = LogisticRegression()
+# Определение путей для сохранения модели и векторизатора
+model_path = 'sgd_classifier.joblib'
+vectorizer_path = 'tfidf_vectorizer.joblib'
 
-    def load_data(self, filename):
-        """Считывает данные из файла и добавляет их в модель."""
+# Проверка наличия сохраненной модели и векторизатора
+if os.path.exists(model_path) and os.path.exists(vectorizer_path):
+    classifier = joblib.load(model_path)
+    vectorizer = joblib.load(vectorizer_path)
+    print("Model and vectorizer loaded successfully!")
+else:
+    # Функция для чтения и предобработки данных
+    def read_and_preprocess(file_path):
+        questions = []
+        answers = []
+        
+        with open(file_path, 'r', encoding='utf-8') as file:
+            lines = file.readlines()
+            for line in tqdm(lines, desc="Reading lines"):
+                if '@' in line:
+                    parts = line.rsplit('@', 1)
+                    if len(parts) == 2:
+                        question, answer = parts
+                        # Проверка на валидность данных
+                        if question.strip() and answer.strip():
+                            questions.append(question.strip())
+                            answers.append(answer.strip())
+                        
+        return questions, answers
+
+    # Чтение и предобработка данных
+    questions, answers = read_and_preprocess('data_set_excel/output.txt')
+
+    # Проверка, что есть данные для обучения
+    if not questions or not answers:
+        raise ValueError("No valid data to train the model.")
+
+    # Разделение данных на обучающую и тестовую выборки
+    X_train, X_test, y_train, y_test = train_test_split(questions, answers, test_size=0.2, random_state=42)
+
+    # Создание и обучение модели
+    vectorizer = TfidfVectorizer()
+    classifier = SGDClassifier()
+
+    # Преобразование текстов в векторное представление
+    X_train_vec = vectorizer.fit_transform(X_train)
+    X_test_vec = vectorizer.transform(X_test)
+
+    # Получение уникальных классов
+    classes = np.unique(y_train)
+
+    n_epochs = 15  # количество эпох
+
+    print("Training the model...")
+    for epoch in tqdm(range(n_epochs), desc="Training epochs"):
         try:
-            with open(filename, 'r', encoding='utf-8') as f:
-                for line in tqdm(f, desc="Чтение данных", unit="строк"):  # Прогресс-бар при чтении
-                    if '@' in line:  # Проверка наличия @ в строке
-                        parts = line.strip().rsplit('@', 1)  # Разделение по последнему @
-                        if len(parts) == 2:  # Проверка на корректный формат данных
-                            self.questions.append(parts[0])
-                            self.answers.append(parts[1])
-                        else:
-                            print(f"Ошибка в строке: {line} - Неверный формат данных")  # Выводим сообщение об ошибке
-                    else:
-                        print(f"Строка без @: {line} - удалена")  # Выводим сообщение о удаленной строке
-        except FileNotFoundError:
-            print(f"Ошибка: Файл {filename} не найден.")
-        except UnicodeDecodeError:
-            print(f"Ошибка: Проблема с кодировкой в файле {filename}.")
+            X_train_shuffled, y_train_shuffled = shuffle(X_train_vec, y_train)
+            classifier.partial_fit(X_train_shuffled, y_train_shuffled, classes=classes)
         except Exception as e:
-            print(f"Ошибка при чтении файла: {e}")  # Выводим общий тип ошибки
+            print(f"Epoch {epoch} skipped due to an error: {e}")
 
-    def train(self):
-        """Обучает модель на имеющихся данных."""
-        X = self.vectorizer.fit_transform(self.questions)
-        y = self.answers
-        # Имитация многошагового процесса
-        for i in tqdm(range(10), desc="Обучение модели", unit="%"):
-            self.model.fit(X, y) 
-            # (В данном случае фактическое обучение происходит только в первом шаге)
+    # Сохранение модели и векторизатора
+    joblib.dump(classifier, model_path)
+    joblib.dump(vectorizer, vectorizer_path)
+    print("Model and vectorizer trained and saved successfully!")
 
-    def predict(self, question):
-        """Предсказывает ответ на заданный вопрос."""
-        question_vector = self.vectorizer.transform([question])
-        prediction = self.model.predict(question_vector)[0]
-        return prediction
-
-if __name__ == '__main__':
-    model = QuestionAnswerModel()
-
-    # Загрузка данных из файла
-    model.load_data('output2.txt')
-
-    # Обучение модели
-    model.train()
-
-    # Ввод новых вопросов в цикле
+# Функция для уточнения и получения подтверждения от пользователя
+def get_clarification(prediction):
     while True:
-        new_question = input("Введите вопрос: ")
-        if new_question.lower() in ('стоп', 'stop'):
-            break
-        # Предсказание ответа
-        answer = model.predict(new_question)
-        print("Ответ:", answer)
+        print("Answer:", prediction)
+        confirmation = input("Is this the answer you were looking for? (yes/no): ").strip().lower()
+        if confirmation == 'yes':
+            return True
+        elif confirmation == 'no':
+            return False
+        else:
+            print("Please respond with 'yes' or 'no'.")
+
+# Цикл для получения вопросов от пользователя
+print("Enter your questions. Type 'stop' to end the session.")
+while True:
+    user_question = input("Your question: ").strip()
+    if user_question.lower() in ['stop', 'стоп']:
+        break
+    try:
+        attempts = 2
+        while attempts > 0:
+            user_question_vec = vectorizer.transform([user_question])
+            prediction = classifier.predict(user_question_vec)[0]
+
+            if get_clarification(prediction):
+                print("Glad I could help!")
+                break
+            else:
+                attempts -= 1
+                if attempts == 0:
+                    print("Перевожу на оператора.")
+                else:
+                    user_question = input("Could you please rephrase your question or provide more details? ").strip()
+    except Exception as e:
+        print(f"An error occurred while processing the question: {e}")
