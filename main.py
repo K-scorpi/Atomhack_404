@@ -89,7 +89,7 @@ else:
     # Получение уникальных классов
     classes = np.unique(y_train)
 
-    n_epochs = 15  # количество эпох
+    n_epochs = 10  # количество эпох
 
     print("Обучение модели...")
     for epoch in tqdm(range(n_epochs), desc="Эпохи обучения"):
@@ -139,6 +139,8 @@ def choose_best_answer(question, model_answer, file_answer):
     model_similarity = cosine_similarity(question_vec, model_answer_vec)
     file_similarity = cosine_similarity(question_vec, file_answer_vec)
 
+    print(f"Сходство ответа модели: {model_similarity}, Сходство ответа из файлов: {file_similarity}")
+
     if model_similarity > file_similarity:
         return model_answer
     else:
@@ -156,13 +158,16 @@ while True:
         model_answer = classifier.predict(user_question_vec)[0]
 
         # Поиск ответа в текстовых файлах
+        print("Поиск ответа в текстовых файлах...")
         file_answer = search_in_files(user_question, data_files)
 
         # Если ответ найден и в файлах
         if file_answer:
+            print(f"Ответ найден в файлах: {file_answer}")
             # Выбор наиболее релевантного ответа
             best_answer = choose_best_answer(user_question, model_answer, file_answer)
         else:
+            print("Ответ в файлах не найден.")
             best_answer = model_answer
 
         attempts = 2
