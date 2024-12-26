@@ -54,7 +54,7 @@ def read_main_dataset(file_path):
     return questions, answers
 
 # Получение списка всех текстовых файлов
-data_files = [f"vse_v_txt/{i}.txt" for i in range(1, 29)]
+#data_files = [f"vse_v_txt/{i}.txt" for i in range(1, 29)]
 main_dataset_path = 'data_set_excel/output.txt'
 
 # Проверка наличия сохраненной модели и векторизатора
@@ -65,15 +65,15 @@ if os.path.exists(model_path) and os.path.exists(vectorizer_path):
 else:
     # Чтение и предобработка данных из основного датасета и текстовых файлов
     main_questions, main_answers = read_main_dataset(main_dataset_path)
-    file_questions, file_answers = read_and_preprocess(data_files)
+    #file_questions, file_answers = read_and_preprocess(data_files)
 
     # Объединение данных
-    questions = main_questions + file_questions
-    answers = main_answers + file_answers
+    questions = main_questions #+ file_questions
+    answers = main_answers #+ file_answers
 
     # Проверка, что есть данные для обучения
-    if not questions or not answers:
-        raise ValueError("Нет валидных данных для обучения модели.")
+    #if not questions or not answers:
+    #    raise ValueError("Нет валидных данных для обучения модели.")
 
     # Разделение данных на обучающую и тестовую выборки
     X_train, X_test, y_train, y_test = train_test_split(questions, answers, test_size=0.2, random_state=42)
@@ -89,7 +89,7 @@ else:
     # Получение уникальных классов
     classes = np.unique(y_train)
 
-    n_epochs = 15  # количество эпох
+    n_epochs = 1 # количество эпох
 
     print("Обучение модели...")
     for epoch in tqdm(range(n_epochs), desc="Эпохи обучения"):
@@ -156,14 +156,11 @@ while True:
         model_answer = classifier.predict(user_question_vec)[0]
 
         # Поиск ответа в текстовых файлах
-        file_answer = search_in_files(user_question, data_files)
+        #file_answer = search_in_files(user_question, data_files)
 
         # Если ответ найден и в файлах
-        if file_answer:
-            # Выбор наиболее релевантного ответа
-            best_answer = choose_best_answer(user_question, model_answer, file_answer)
-        else:
-            best_answer = model_answer
+        
+        best_answer = model_answer
 
         attempts = 2
         while attempts > 0:
@@ -182,12 +179,12 @@ while True:
                     model_answer = classifier.predict(user_question_vec)[0]
 
                     # Обновить поиск ответа в текстовых файлах
-                    file_answer = search_in_files(user_question, data_files)
+                    #file_answer = search_in_files(user_question, data_files)
 
-                    if file_answer:
+                    """if file_answer:
                         best_answer = choose_best_answer(user_question, model_answer, file_answer)
-                    else:
-                        best_answer = model_answer
+                    else:"""
+                    best_answer = model_answer
 
     except Exception as e:
         print(f"Произошла ошибка при обработке вопроса: {e}")
